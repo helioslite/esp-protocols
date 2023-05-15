@@ -177,4 +177,11 @@ menu "Example Configuration"
         range 0 31
         help
             Pin number connected to modem's power key pin.
+
+    config EXAMPLE_MODEM_VBATOUT_PIN
+        int "VBatOut Pin Number"
+        default 10
+        range 0 31
+        help
+            VBatOut pin number.
 endmenu

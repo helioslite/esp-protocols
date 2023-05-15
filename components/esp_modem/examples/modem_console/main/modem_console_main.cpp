@@ -52,8 +52,9 @@
  */
 #define DEFAULT_APN CONFIG_EXAMPLE_MODEM_PPP_APN
 
+#define GPIO_OUTPUT_VBATOUT    (gpio_num_t)CONFIG_EXAMPLE_MODEM_VBATOUT_PIN
 #define GPIO_OUTPUT_PWRKEY    (gpio_num_t)CONFIG_EXAMPLE_MODEM_PWRKEY_PIN
-#define GPIO_OUTPUT_PIN_SEL  (1ULL<<GPIO_OUTPUT_PWRKEY)
+#define GPIO_OUTPUT_PIN_SEL  ((1ULL<<GPIO_OUTPUT_PWRKEY) | (1ULL<<GPIO_OUTPUT_VBATOUT))
 
 extern "C" void modem_console_register_http(void);
 extern "C" void modem_console_register_ping(void);
@@ -72,14 +73,20 @@ void config_gpio(void)
     io_conf.intr_type = GPIO_INTR_DISABLE;          //disable interrupt
     io_conf.mode = GPIO_MODE_OUTPUT;                //set as output mode
     io_conf.pin_bit_mask = GPIO_OUTPUT_PIN_SEL;     //bit mask of the pins that you want to set,e.g.GPIO18/19
-    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;   //disable pull-down mode
+    io_conf.pull_down_en = GPIO_PULLDOWN_ENABLE;    //enable pull-down mode
     io_conf.pull_up_en = GPIO_PULLUP_DISABLE;       //disable pull-up mode
 
     gpio_config(&io_conf);                          //configure GPIO with the given settings
+
+    // by default, modem must be switched off
+    gpio_set_level(GPIO_OUTPUT_VBATOUT, 0);
 }
 
 void wakeup_modem(void)
 {
+    gpio_set_level(GPIO_OUTPUT_VBATOUT, 1);
+    vTaskDelay(pdMS_TO_TICKS(10));
+
     /* Power on the modem */
     ESP_LOGI(TAG, "Power on the modem");
     gpio_set_level(GPIO_OUTPUT_PWRKEY, 1);
@@ -314,6 +321,19 @@ extern "C" void app_main(void)
         int act;
         ESP_LOGI(TAG, "Reading operator name...");
         CHECK_ERR(dce->get_operator_name(operator_name, act), ESP_LOGI(TAG, "OK. Operator name: %s", operator_name.c_str()));
+    });
+
+    const ConsoleCommand GetImsi("get_imsi", "reads the imsi", no_args, [&](ConsoleCommand * c) {
+        std::string imsi;
+        ESP_LOGI(TAG, "Reading imsi...");
+        CHECK_ERR(dce->get_imsi(imsi), ESP_LOGI(TAG, "OK. IMSI: %s", imsi.c_str()));
+    });
+
+    const ConsoleCommand GetIccid("get_iccid", "reads the iccid", no_args, [&](ConsoleCommand * c) {
+        std::string iccid;
+        ESP_LOGI(TAG, "Reading iccid...");
+        CHECK_ERR(dce->at("AT+QCCID", iccid, 300),  ESP_LOGI(TAG, "OK. %s", iccid.c_str()));
+        return 0;
     });
 
     const struct GenericCommandArgs {
